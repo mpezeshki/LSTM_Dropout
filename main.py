@@ -16,9 +16,8 @@ from blocks.graph import ComputationGraph
 import logging
 from blocks.monitoring import aggregation
 from utils import SaveLog, SaveParams, print_num_params, Glorot
-from datasets import get_seq_mnist_streams, get_stream
+from datasets import get_stream
 from models import DropRecurrent, DropLSTM
-from blocks.bricks.recurrent import SimpleRecurrent
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 floatX = theano.config.floatX
@@ -28,8 +27,8 @@ batch_size = 100
 x_dim = 1
 y_dim = 10
 h_dim = 100
-update_prob = 0.8
-model_type = 1
+update_prob = 0.85
+model_type = 3
 save_path = 'path_model_type_' + str(model_type)
 
 print 'Building model ...'
@@ -78,6 +77,7 @@ fh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
 
 print 'Bulding training process...'
+model = Model(cost)
 params = ComputationGraph(cost).parameters
 print_num_params(params)
 clipping = StepClipping(threshold=np.cast[floatX](1.0))
@@ -95,6 +95,27 @@ algorithm = GradientDescent(
 train_stream = get_stream('train', batch_size, update_prob, h_dim)
 valid_stream = get_stream('valid', batch_size, update_prob, h_dim)
 
+if False:
+    with open(save_path + '/trained_params_best.npz') as f:
+        loaded = np.load(f)
+        params_dicts = model.get_parameter_dict()
+        params_names = params_dicts.keys()
+        for param_name in params_names:
+            param = params_dicts[param_name]
+            # '/f_6_.W' --> 'f_6_.W'
+            slash_index = param_name.find('/')
+            param_name = param_name[slash_index + 1:]
+            if param.get_value().shape == loaded[param_name].shape:
+                print param
+                param.set_value(loaded[param_name])
+            else:
+                print param_name
+    f = theano.function([x, drops, y], error_rate)
+    data_train = train_stream.get_epoch_iterator(as_dict=True).next()
+    data_valid = valid_stream.get_epoch_iterator(as_dict=True).next()
+    print f(data_train['x'], data_train['drops'], data_train['y'])
+    print f(data_valid['x'], data_valid['drops'], data_valid['y'])
+
 monitored_variables = [
     cost, error_rate,
     aggregation.mean(algorithm.total_gradient_norm)]
@@ -108,7 +129,6 @@ monitor_valid_cost = DataStreamMonitoring(monitored_variables,
                                           prefix="valid",
                                           after_epoch=True)
 
-model = Model(cost)
 main_loop = MainLoop(data_stream=train_stream, algorithm=algorithm,
                      extensions=[monitor_train_cost,
                                  monitor_valid_cost,

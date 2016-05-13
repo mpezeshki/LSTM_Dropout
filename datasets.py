@@ -4,6 +4,7 @@ from fuel.datasets import IterableDataset
 from fuel.streams import DataStream
 import theano
 from fuel.transformers import Transformer
+import fuel
 floatX = theano.config.floatX
 
 
@@ -81,8 +82,6 @@ def get_seq_mnist_streams(hidden_dim, batch_size=100, drop_prob=0.5):
 
     return train_stream, valid_stream
 
-import fuel
-
 
 def get_dataset(which_set):
     MNIST = fuel.datasets.MNIST
@@ -94,7 +93,9 @@ def get_dataset(which_set):
     return _datasets[which_set]
 
 
-def get_stream(which_set, batch_size, drop_prob, hidden_dim, num_examples=None):
+def get_stream(which_set, batch_size, drop_prob,
+               hidden_dim, num_examples=None):
+    np.random.seed(seed=1)
     permutation = np.random.randint(0, 784, size=(784,))
     dataset = get_dataset(which_set)
     if num_examples is None or num_examples > dataset.num_examples:
