@@ -55,7 +55,7 @@ class SaveParams(SimpleExtension):
             np.savez_compressed(path, **to_save)
 
 
-class Glorot(NdarrayInitialization):
+class Glorot_0(NdarrayInitialization):
     def generate(self, rng, shape):
         if len(shape) == 2:
             input_size, output_size = shape
@@ -65,13 +65,55 @@ class Glorot(NdarrayInitialization):
                 high = np.sqrt(6) / np.sqrt(200)
                 mi = rng.uniform(-high, high, size=(100, 100))
                 mf = rng.uniform(-high, high, size=(100, 100))
-                mc = rng.uniform(-high, high, size=(100, 100))
-                # mc = np.identity(100)
+                mc = np.identity(100)
                 mo = rng.uniform(-high, high, size=(100, 100))
                 m = np.hstack([mi, mf, mc, mo])
             else:
                 import ipdb
                 ipdb.set_trace
+        return m.astype(theano.config.floatX)
+
+
+class Glorot(NdarrayInitialization):
+    def generate(self, rng, shape):
+        if len(shape) == 2:
+            if shape[0] == shape[1]:
+                M = rng.randn(*shape).astype(theano.config.floatX)
+                Q, R = np.linalg.qr(M)
+                m = Q * np.sign(np.diag(R))
+
+            else:
+
+                M1 = rng.randn(shape[0], shape[0]).astype(theano.config.floatX)
+                M2 = rng.randn(shape[1], shape[1]).astype(theano.config.floatX)
+
+                # QR decomposition of matrix with entries in N(0, 1) is random
+                Q1, R1 = np.linalg.qr(M1)
+                Q2, R2 = np.linalg.qr(M2)
+                # Correct that np doesn't force diagonal of R to be non-negative
+                Q1 = Q1 * np.sign(np.diag(R1))
+                Q2 = Q2 * np.sign(np.diag(R2))
+
+                n_min = min(shape[0], shape[1])
+                m = np.dot(Q1[:, :n_min], Q2[:n_min, :])
+
+                # if shape == (100, 400):
+                if False:
+                    M = rng.randn(100, 100).astype(theano.config.floatX)
+                    Q, R = np.linalg.qr(M)
+                    mi = Q * np.sign(np.diag(R))
+
+                    M = rng.randn(100, 100).astype(theano.config.floatX)
+                    Q, R = np.linalg.qr(M)
+                    mf = Q * np.sign(np.diag(R))
+
+                    M = rng.randn(100, 100).astype(theano.config.floatX)
+                    Q, R = np.linalg.qr(M)
+                    mo = Q * np.sign(np.diag(R))
+
+                    mc = np.identity(100)
+                    m = np.hstack([mi, mf, mc, mo])
+
         return m.astype(theano.config.floatX)
 
 

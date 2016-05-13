@@ -131,7 +131,9 @@ class DropLSTM(BaseRecurrent, Initializable):
 
         activation = tensor.dot(states, self.W_state) + inputs
         in_gate = self.gate_activation.apply(slice_last(activation, 0))
-        forget_gate = self.gate_activation.apply(slice_last(activation, 1))
+        forget_gate_input = slice_last(activation, 1)
+        forget_gate = self.gate_activation.apply(
+            forget_gate_input + tensor.ones_like(forget_gate_input))
         next_cells = (
             forget_gate * cells +
             in_gate * self.activation.apply(slice_last(activation, 2)))

@@ -8,7 +8,7 @@ from blocks.algorithms import (GradientDescent, RMSProp, StepClipping,
                                RemoveNotFinite, CompositeRule)
 from blocks.extensions.monitoring import (TrainingDataMonitoring,
                                           DataStreamMonitoring)
-from blocks.bricks import Linear, Rectifier, Softmax
+from blocks.bricks import Linear, Tanh, Softmax
 from blocks.initialization import Constant
 from blocks.main_loop import MainLoop
 from blocks.extensions import Printing
@@ -16,8 +16,9 @@ from blocks.graph import ComputationGraph
 import logging
 from blocks.monitoring import aggregation
 from utils import SaveLog, SaveParams, print_num_params, Glorot
-from datasets import get_seq_mnist_streams
+from datasets import get_seq_mnist_streams, get_stream
 from models import DropRecurrent, DropLSTM
+from blocks.bricks.recurrent import SimpleRecurrent
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 floatX = theano.config.floatX
@@ -44,7 +45,7 @@ x_to_h1 = Linear(name='x_to_h1',
                  input_dim=x_dim,
                  output_dim=4 * h_dim)
 pre_rnn = x_to_h1.apply(x)
-rnn = DropLSTM(activation=Rectifier(), dim=h_dim,
+rnn = DropLSTM(activation=Tanh(), dim=h_dim,
                model_type=model_type, name="rnn")
 h1, c1 = rnn.apply(pre_rnn, drops)
 h1_to_o = Linear(name='h1_to_o',
@@ -81,15 +82,18 @@ params = ComputationGraph(cost).parameters
 print_num_params(params)
 clipping = StepClipping(threshold=np.cast[floatX](1.0))
 # Momentum(learning_rate=args.learning_rate, momentum=0.9)
+rm_non_finite = RemoveNotFinite()
 rms_prop = RMSProp(learning_rate=1e-3, decay_rate=0.5)
-step_rule = CompositeRule([clipping, rms_prop])
+step_rule = CompositeRule([clipping, rms_prop, rm_non_finite])
 algorithm = GradientDescent(
     cost=cost,
     parameters=params,
     step_rule=step_rule)
 
-train_stream, valid_stream = get_seq_mnist_streams(
-    h_dim, batch_size, update_prob)
+# train_stream, valid_stream = get_seq_mnist_streams(
+#    h_dim, batch_size, update_prob)
+train_stream = get_stream('train', batch_size, update_prob, h_dim)
+valid_stream = get_stream('valid', batch_size, update_prob, h_dim)
 
 monitored_variables = [
     cost, error_rate,
