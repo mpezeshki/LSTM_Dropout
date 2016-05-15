@@ -28,8 +28,8 @@ x_dim = 1
 y_dim = 10
 h_dim = 100
 update_prob = 0.85
-model_type = 3
-save_path = 'path_model_type_' + str(model_type)
+model_type = 8
+save_path = 'path_new_monitoring_model_type_' + str(model_type)
 
 print 'Building model ...'
 # shape: T x B x F
@@ -92,8 +92,9 @@ algorithm = GradientDescent(
 
 # train_stream, valid_stream = get_seq_mnist_streams(
 #    h_dim, batch_size, update_prob)
-train_stream = get_stream('train', batch_size, update_prob, h_dim)
-valid_stream = get_stream('valid', batch_size, update_prob, h_dim)
+train_stream = get_stream('train', batch_size, update_prob, h_dim, False)
+train_stream_evaluation = get_stream('train', batch_size, update_prob, h_dim, True)
+valid_stream = get_stream('valid', batch_size, update_prob, h_dim, True)
 
 if False:
     with open(save_path + '/trained_params_best.npz') as f:
@@ -120,17 +121,26 @@ monitored_variables = [
     cost, error_rate,
     aggregation.mean(algorithm.total_gradient_norm)]
 
-monitor_train_cost = TrainingDataMonitoring(monitored_variables,
-                                            prefix="train",
-                                            after_epoch=True)
+monitor_train_cost = TrainingDataMonitoring(
+    monitored_variables,
+    prefix="train",
+    after_epoch=True)
 
-monitor_valid_cost = DataStreamMonitoring(monitored_variables,
-                                          data_stream=valid_stream,
-                                          prefix="valid",
-                                          after_epoch=True)
+monitor_train_cost_evaluation = DataStreamMonitoring(
+    monitored_variables,
+    data_stream=train_stream_evaluation,
+    prefix="train_evaluation",
+    after_epoch=True)
+
+monitor_valid_cost = DataStreamMonitoring(
+    monitored_variables,
+    data_stream=valid_stream,
+    prefix="valid",
+    after_epoch=True)
 
 main_loop = MainLoop(data_stream=train_stream, algorithm=algorithm,
                      extensions=[monitor_train_cost,
+                                 monitor_train_cost_evaluation,
                                  monitor_valid_cost,
                                  Printing(),
                                  SaveLog(after_epoch=True),

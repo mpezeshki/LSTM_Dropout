@@ -14,6 +14,8 @@ from blocks.bricks.recurrent import BaseRecurrent, recurrent
 # 4: Res RNN + Regular Dropout
 # 5: Res RNN + New Dropout
 # 6: Regular RNN + New Dropout
+# 7: Recurrent Dropout without Memory Loss
+# 8: Moon et al
 class DropRecurrent(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
     def __init__(self, dim, activation, model_type=1, **kwargs):
@@ -155,6 +157,12 @@ class DropLSTM(BaseRecurrent, Initializable):
         elif self.model_type == 6:
             next_states = next_states * drops + (1 - drops) * states
             next_cells = next_cells * drops + (1 - drops) * cells
+        elif self.model_type == 7:
+            next_cells = (
+                forget_gate * cells +
+                in_gate * drops * self.activation.apply(slice_last(activation, 2)))
+        elif self.model_type == 8:
+            next_cells = next_cells * drops
 
         if mask:
             next_states = (mask[:, None] * next_states +

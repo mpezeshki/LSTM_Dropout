@@ -94,7 +94,7 @@ def get_dataset(which_set):
 
 
 def get_stream(which_set, batch_size, drop_prob,
-               hidden_dim, num_examples=None):
+               hidden_dim, for_evaluation, num_examples=None):
     np.random.seed(seed=1)
     permutation = np.random.randint(0, 784, size=(784,))
     dataset = get_dataset(which_set)
@@ -104,9 +104,9 @@ def get_stream(which_set, batch_size, drop_prob,
         dataset,
         iteration_scheme=fuel.schemes.ShuffledScheme(num_examples, batch_size))
     if which_set == "train":
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, False, permutation)
+        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
     else:
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, True, permutation)
+        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
     ds.sources = ('x', 'y', 'drops')
     return ds
 
