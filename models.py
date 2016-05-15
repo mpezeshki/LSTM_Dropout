@@ -15,7 +15,7 @@ from blocks.bricks.recurrent import BaseRecurrent, recurrent
 # 5: Res RNN + New Dropout
 # 6: Regular RNN + New Dropout
 # 7: Recurrent Dropout without Memory Loss
-# 8: Moon et al
+# 8: Moon et al: one cell only
 class DropRecurrent(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
     def __init__(self, dim, activation, model_type=1, **kwargs):
@@ -178,10 +178,18 @@ class DropLSTM(BaseRecurrent, Initializable):
                 tensor.repeat(self.initial_cells[None, :], batch_size, 0)]
 
 
+# model_type:
+# 1: Regular GRU
+# 2: Regular GRU + Regular Dropout
+# 3: Res GRU
+# 4: Res GRU + Regular Dropout
+# 5: Regular GRU + New Dropout
+# 6: Recurrent Dropout without Memory Loss
+# 7: Moon et al: one cell only
 class DropGRU(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
     def __init__(self, dim, activation=None, gate_activation=None,
-                 **kwargs):
+                 model_type=1, **kwargs):
         self.dim = dim
 
         if not activation:
@@ -190,6 +198,7 @@ class DropGRU(BaseRecurrent, Initializable):
             gate_activation = Logistic()
         self.activation = activation
         self.gate_activation = gate_activation
+        self.model_type = model_type
 
         children = [activation, gate_activation]
         kwargs.setdefault('children', []).extend(children)
@@ -233,18 +242,46 @@ class DropGRU(BaseRecurrent, Initializable):
         self.state_to_gates.set_value(
             np.hstack([state_to_update, state_to_reset]))
 
-    @recurrent(sequences=['mask', 'inputs', 'gate_inputs'],
+    @recurrent(sequences=['mask', 'inputs', 'gate_inputs', 'drops'],
                states=['states'], outputs=['states'], contexts=[])
-    def apply(self, inputs, gate_inputs, states, mask=None):
+    def apply(self, inputs, gate_inputs, drops, states, mask=None):
         gate_values = self.gate_activation.apply(
             states.dot(self.state_to_gates) + gate_inputs)
         update_values = gate_values[:, :self.dim]
         reset_values = gate_values[:, self.dim:]
         states_reset = states * reset_values
-        next_states = self.activation.apply(
-            states_reset.dot(self.state_to_state) + inputs)
-        next_states = (next_states * update_values +
-                       states * (1 - update_values))
+
+        if self.model_type == 1:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = (next_states * update_values +
+                           states * (1 - update_values))
+        elif self.model_type == 2:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = (next_states * update_values +
+                           states * (1 - update_values))
+            next_states = next_states * drops
+        elif self.model_type == 3:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = next_states * update_values + states
+        elif self.model_type == 4:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = drops * next_states * update_values + states
+        elif self.model_type == 5:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = (next_states * update_values +
+                           states * (1 - update_values))
+            next_states = next_states * drops + (1 - drops) * states
+        elif self.model_type == 6:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            next_states = (drops * next_states * update_values +
+                           states * (1 - update_values))
+
         if mask:
             next_states = (mask[:, None] * next_states +
                            (1 - mask[:, None]) * states)
