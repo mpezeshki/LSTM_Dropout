@@ -17,7 +17,7 @@ import logging
 from blocks.monitoring import aggregation
 from utils import SaveLog, SaveParams, print_num_params, Glorot
 from datasets import get_stream
-from models import DropRecurrent, DropLSTM
+from models import DropLSTM
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 floatX = theano.config.floatX
@@ -28,8 +28,15 @@ x_dim = 1
 y_dim = 10
 h_dim = 100
 update_prob = 0.85
-model_type = 8
-save_path = 'path_new_monitoring_model_type_' + str(model_type)
+model_type = 4
+if model_type == 1:
+    save_path = 'LSTM_LSTM'
+if model_type == 2:
+    save_path = 'LSTM_Dropout'
+if model_type == 3:
+    save_path = 'LSTM_Elephant'
+if model_type == 4:
+    save_path = 'LSTM_ZoneOut'
 
 print 'Building model ...'
 # shape: T x B x F
