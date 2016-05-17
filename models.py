@@ -18,9 +18,10 @@ from blocks.bricks.recurrent import BaseRecurrent, recurrent
 # 8: Moon et al: one cell only
 class DropRecurrent(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
-    def __init__(self, dim, activation, model_type=1, **kwargs):
+    def __init__(self, dim, activation, model_type, update_prob, **kwargs):
         self.dim = dim
         self.model_type = model_type
+        self.update_prob = update_prob
         children = [activation]
         kwargs.setdefault('children', []).extend(children)
         super(DropRecurrent, self).__init__(**kwargs)
@@ -80,10 +81,11 @@ class DropRecurrent(BaseRecurrent, Initializable):
 
 class DropLSTM(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
-    def __init__(self, dim, activation=None, gate_activation=None,
-                 model_type=1, **kwargs):
+    def __init__(self, dim, model_type, update_prob,
+                 activation=None, gate_activation=None, **kwargs):
         self.dim = dim
         self.model_type = model_type
+        self.update_prob = update_prob
 
         if not activation:
             activation = Tanh()
@@ -125,10 +127,10 @@ class DropLSTM(BaseRecurrent, Initializable):
         for weights in self.parameters[:1]:
             self.weights_init.initialize(weights, self.rng)
 
-    @recurrent(sequences=['inputs', 'drops', 'mask'],
+    @recurrent(sequences=['inputs', 'drops', 'is_for_test', 'mask'],
                states=['states', 'cells'],
                contexts=[], outputs=['states', 'cells'])
-    def apply(self, inputs, drops, states, cells, mask=None):
+    def apply(self, inputs, drops, is_for_test, states, cells, mask=None):
         def slice_last(x, no):
             return x[:, no * self.dim: (no + 1) * self.dim]
 
@@ -143,26 +145,29 @@ class DropLSTM(BaseRecurrent, Initializable):
         out_gate = self.gate_activation.apply(slice_last(activation, 3))
         next_states = out_gate * self.activation.apply(next_cells)
 
-        # In training time drops is either 0 or 1
-        # In test time drops is 0.5 (if drop_prob=0.5)
+        sampled_drops = ((1.0 - is_for_test) * drops < self.update_prob +
+                         is_for_test * tensor.ones_like(drops) * self.update_prob)
+
+        # In training time sampled_drops is either 0 or 1
+        # In test time sampled_drops is 0.5 (if drop_prob=0.5)
         if self.model_type == 2:
-            next_states = next_states * drops
-            next_cells = next_cells * drops
+            next_states = next_states * sampled_drops
+            next_cells = next_cells * sampled_drops
         elif self.model_type == 3:
             next_states = (next_states + states) / 2
         elif self.model_type == 4:
-            next_states = (next_states + states) * drops
+            next_states = (next_states + states) * sampled_drops
         elif self.model_type == 5:
-            next_states = next_states * drops + states
+            next_states = next_states * sampled_drops + states
         elif self.model_type == 6:
-            next_states = next_states * drops + (1 - drops) * states
-            next_cells = next_cells * drops + (1 - drops) * cells
+            next_states = next_states * sampled_drops + (1 - sampled_drops) * states
+            next_cells = next_cells * sampled_drops + (1 - sampled_drops) * cells
         elif self.model_type == 7:
             next_cells = (
                 forget_gate * cells +
-                in_gate * drops * self.activation.apply(slice_last(activation, 2)))
+                in_gate * sampled_drops * self.activation.apply(slice_last(activation, 2)))
         elif self.model_type == 8:
-            next_cells = next_cells * drops
+            next_cells = next_cells * sampled_drops
 
         if mask:
             next_states = (mask[:, None] * next_states +
@@ -178,19 +183,12 @@ class DropLSTM(BaseRecurrent, Initializable):
                 tensor.repeat(self.initial_cells[None, :], batch_size, 0)]
 
 
-# model_type:
-# 1: Regular GRU
-# 2: Regular GRU + Regular Dropout
-# 3: Res GRU
-# 4: Res GRU + Regular Dropout
-# 5: Regular GRU + New Dropout
-# 6: Recurrent Dropout without Memory Loss
-# 7: Moon et al: one cell only
 class DropGRU(BaseRecurrent, Initializable):
     @lazy(allocation=['dim'])
-    def __init__(self, dim, activation=None, gate_activation=None,
-                 model_type=1, **kwargs):
+    def __init__(self, dim, model_type, update_prob,
+                 activation=None, gate_activation=None, **kwargs):
         self.dim = dim
+        self.update_prob = update_prob
 
         if not activation:
             activation = Tanh()
@@ -242,14 +240,17 @@ class DropGRU(BaseRecurrent, Initializable):
         self.state_to_gates.set_value(
             np.hstack([state_to_update, state_to_reset]))
 
-    @recurrent(sequences=['mask', 'inputs', 'gate_inputs', 'drops'],
-               states=['states'], outputs=['states'], contexts=[])
-    def apply(self, inputs, gate_inputs, drops, states, mask=None):
+    @recurrent(sequences=['mask', 'inputs', 'gate_inputs', 'drops', 'is_for_test'],
+               states=['states'], outputs=['states', 'sampled_drops'], contexts=[])
+    def apply(self, inputs, gate_inputs, drops, is_for_test, states, mask=None):
         gate_values = self.gate_activation.apply(
             states.dot(self.state_to_gates) + gate_inputs)
         update_values = gate_values[:, :self.dim]
         reset_values = gate_values[:, self.dim:]
         states_reset = states * reset_values
+
+        sampled_drops = ((1.0 - is_for_test) * drops < self.update_prob +
+                         is_for_test * tensor.ones_like(drops) * self.update_prob)
 
         if self.model_type == 1:
             next_states = self.activation.apply(
@@ -261,31 +262,40 @@ class DropGRU(BaseRecurrent, Initializable):
                 states_reset.dot(self.state_to_state) + inputs)
             next_states = (next_states * update_values +
                            states * (1 - update_values))
-            next_states = next_states * drops
+            next_states = next_states * sampled_drops
         elif self.model_type == 3:
             next_states = self.activation.apply(
                 states_reset.dot(self.state_to_state) + inputs)
-            next_states = next_states * update_values + states
+            next_states = (sampled_drops * next_states * update_values +
+                           states * (1 - update_values))
         elif self.model_type == 4:
             next_states = self.activation.apply(
                 states_reset.dot(self.state_to_state) + inputs)
-            next_states = drops * next_states * update_values + states
+            sampled_drops = ((1.0 - is_for_test) * drops < update_values +
+                             is_for_test * tensor.ones_like(drops) * update_values)
+            next_states = (sampled_drops * next_states +
+                           states * (1 - update_values))
+
         elif self.model_type == 5:
+            next_states = self.activation.apply(
+                states_reset.dot(self.state_to_state) + inputs)
+            sampled_drops = ((1.0 - is_for_test) * drops < update_values +
+                             is_for_test * tensor.ones_like(drops) * update_values)
+            next_states = (sampled_drops * next_states * update_values +
+                           states * (1 - update_values))
+
+        elif self.model_type == 6:
             next_states = self.activation.apply(
                 states_reset.dot(self.state_to_state) + inputs)
             next_states = (next_states * update_values +
                            states * (1 - update_values))
-            next_states = next_states * drops + (1 - drops) * states
-        elif self.model_type == 6:
-            next_states = self.activation.apply(
-                states_reset.dot(self.state_to_state) + inputs)
-            next_states = (drops * next_states * update_values +
-                           states * (1 - update_values))
+
+            next_states = sampled_drops * next_states + (1 - sampled_drops) * states
 
         if mask:
             next_states = (mask[:, None] * next_states +
                            (1 - mask[:, None]) * states)
-        return next_states
+        return next_states, sampled_drops
 
     @application(outputs=apply.states)
     def initial_states(self, batch_size, *args, **kwargs):

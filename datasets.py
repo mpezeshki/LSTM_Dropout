@@ -8,31 +8,6 @@ import fuel
 floatX = theano.config.floatX
 
 
-class SampleDrops(Transformer):
-    def __init__(self, data_stream, drop_prob, hidden_dim,
-                 is_for_test, **kwargs):
-        super(SampleDrops, self).__init__(
-            data_stream, **kwargs)
-        self.drop_prob = drop_prob
-        self.hidden_dim = hidden_dim
-        self.is_for_test = is_for_test
-        self.produces_examples = False
-
-    def get_data(self, request=None):
-        data = next(self.child_epoch_iterator)
-        transformed_data = []
-        transformed_data.append(data[0])
-        transformed_data.append(data[1])
-        T, B, _ = data[1].shape
-        if self.is_for_test:
-            drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
-        else:
-            drops = np.random.binomial(n=1, p=self.drop_prob,
-                                       size=(T, B, self.hidden_dim))
-        transformed_data.append(drops.astype(floatX))
-        return transformed_data
-
-
 def get_seq_mnist_streams(hidden_dim, batch_size=100, drop_prob=0.5):
     permutation = np.random.randint(0, 784, size=(784,))
 
@@ -93,8 +68,8 @@ def get_dataset(which_set):
     return _datasets[which_set]
 
 
-def get_stream(which_set, batch_size, drop_prob,
-               hidden_dim, for_evaluation, num_examples=None):
+def get_stream(which_set, batch_size,
+               hidden_dim, is_for_test, num_examples=None):
     np.random.seed(seed=1)
     permutation = np.random.randint(0, 784, size=(784,))
     dataset = get_dataset(which_set)
@@ -103,24 +78,20 @@ def get_stream(which_set, batch_size, drop_prob,
     stream = fuel.streams.DataStream.default_stream(
         dataset,
         iteration_scheme=fuel.schemes.ShuffledScheme(num_examples, batch_size))
-    if which_set == "train":
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
-    else:
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
-    ds.sources = ('x', 'y', 'drops')
+    ds = SampleDrops(stream, hidden_dim, permutation, is_for_test)
+    ds.sources = ('x', 'y', 'drops', 'is_for_test')
     return ds
 
 
-class SampleDrops2(Transformer):
-    def __init__(self, data_stream, drop_prob, hidden_dim,
-                 is_for_test, permutation, **kwargs):
-        super(SampleDrops2, self).__init__(
+class SampleDrops(Transformer):
+    def __init__(self, data_stream, hidden_dim, permutation,
+                 is_for_test, **kwargs):
+        super(SampleDrops, self).__init__(
             data_stream, **kwargs)
-        self.drop_prob = drop_prob
         self.hidden_dim = hidden_dim
-        self.is_for_test = is_for_test
         self.produces_examples = False
         self.permutation = permutation
+        self.is_for_test = is_for_test
 
     def get_data(self, request=None):
         data = next(self.child_epoch_iterator)
@@ -130,10 +101,10 @@ class SampleDrops2(Transformer):
                         0, 1)[self.permutation, :, np.newaxis])
         transformed_data.append(data[1][:, 0])
         T, B, _ = transformed_data[0].shape
-        if self.is_for_test:
-            drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
-        else:
-            drops = np.random.binomial(n=1, p=self.drop_prob,
-                                       size=(T, B, self.hidden_dim))
+        drops = np.random.random((T, B, self.hidden_dim))
         transformed_data.append(drops.astype(floatX))
+        if self.is_for_test:
+            transformed_data.append(np.array([1.0] * T).astype(floatX))
+        else:
+            transformed_data.append(np.array([0.0] * T).astype(floatX))
         return transformed_data
