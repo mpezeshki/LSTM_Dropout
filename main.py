@@ -25,8 +25,8 @@ floatX = theano.config.floatX
 
 if __name__ == "__main__":
     batch_size = 64
-    x_dim = 1
-    y_dim = 10
+    x_dim = 50
+    y_dim = 50
     h_dim = 1000
     update_prob = 0.9
     model_type = int(sys.argv[1])
