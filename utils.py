@@ -160,3 +160,13 @@ def load_data(dataset):
 
     rval = [train_set, valid_set, test_set]
     return rval
+
+
+def crossentropy_lastaxes(yhat, y):
+    # for sequence of distributions/targets
+    return -(y * T.log(yhat)).sum(axis=yhat.ndim - 1)
+
+
+def softmax_lastaxis(x):
+    # for sequence of distributions
+    return T.nnet.softmax(x.reshape((-1, x.shape[-1]))).reshape(x.shape)
