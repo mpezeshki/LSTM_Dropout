@@ -154,7 +154,6 @@ def get_data(which_set):
         # lists of indices)
         one_hot_data = np.eye(len(data["vocab"]), dtype=theano.config.floatX)[data[which_set]]
         _data_cache[which_set] = cudandarray(one_hot_data)
-        import ipdb; ipdb.set_trace()
     return _data_cache[which_set]
 
 
@@ -210,13 +209,103 @@ class SampleDropsPTB(Transformer):
         # Now it is: T x B x F
         transformed_data.append(np.swapaxes(data[0], 0, 1))
         T, B, _ = transformed_data[0].shape
-        if self.is_for_test:
-            drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
+
+        if type(self.drop_prob) is str:
+            if self.is_for_test:
+                drops = np.ones((T, B, self.hidden_dim)) * 0.9
+            else:
+                drops = sample_binomialish_corr(
+                    0.9, -0.2, (T, B, self.hidden_dim), False)
+
         else:
-            drops = np.random.binomial(n=1, p=self.drop_prob,
-                                       size=(T, B, self.hidden_dim))
+            if self.is_for_test:
+                drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
+            else:
+                drops = np.random.binomial(n=1, p=self.drop_prob,
+                                           size=(T, B, self.hidden_dim))
+
         transformed_data.append(drops.astype(floatX))
         return transformed_data
+
+
+def build_diff_probs(probs, size):
+    if probs is None:
+        return None, None
+    if 'r' in probs:
+        probs, corr = probs.split('r')
+        corr = float(corr)
+        assert corr > 0
+        # c is for clockwork!
+    elif 'c' in probs:
+        probs, corr = probs.split('c')
+        if corr:
+            corr = -float(corr)
+            assert corr < 0
+        else:
+            corr = None  # very hacky
+    else:
+        corr = 0.
+    try:
+        return float(probs), corr
+    except ValueError:
+        if ',' in probs:
+            mean, sd = map(float, probs.split(','))
+            g = mean * (1 - mean) / sd / sd - 1
+            return np.random.beta(g * mean, g * (1 - mean), size), corr
+        else:
+            lower, upper = map(float, probs.split('-'))
+            return np.random.uniform(lower, upper, size), corr
+
+
+def sample_binomialish_corr(p, corr, size, gaussian_drop):
+    init_size = (1,) + size[1:]
+    p = np.asarray(p)
+    assert (p >= 0).all() and (p <= 1).all()
+    # cause np.random.normal complains about scale=0
+    if (p == 0).all():
+        return np.zeros(size, floatX)
+    if (p == 1).all():
+        return np.ones(size, floatX)
+    if corr and corr == 1:
+        corr, size = 0, (1,) + size[1:]
+    if gaussian_drop:
+        if corr is None or corr < 0:
+            jitter = np.random.normal(scale=-corr, size=size).cumsum(axis=0) if corr else 0
+            r = np.sqrt(p * (1 - p) * np.random.exponential(
+                scale=2, size=init_size))
+            th = 2 * np.pi * (np.random.uniform(size=init_size) +
+                              np.indices(size)[0] * p + jitter)
+            return (p + r * np.cos(th)).astype(floatX)
+        if corr:
+            retval = np.zeros(size, floatX)
+            retval[0] = np.random.normal(
+                loc=p, scale=np.sqrt(p * (1 - p)),
+                size=size[1:]).astype(floatX)
+            for i in range(size[0] - 1):
+                retval[i + 1] = np.random.normal(
+                    loc=p + corr * (retval[i] - p),
+                    scale=np.sqrt(p * (1 - p) * (1 - corr * corr)),
+                    size=size[1:]).astype(floatX)
+            return retval
+        else:
+            return np.random.normal(
+                loc=p, scale=np.sqrt(p * (1 - p)), size=size).astype(floatX)
+    else:
+        if corr is None or corr < 0:
+            jitter = np.random.normal(scale=-corr, size=size).cumsum(axis=0) if corr else 0
+            return ((np.random.uniform(size=init_size) +
+                    np.indices(size)[0] * p + jitter) % 1 < p).astype(floatX)
+        elif corr:
+            retval = np.zeros(size, floatX)
+            retval[0] = np.random.binomial(
+                n=1, p=p, size=size[1:]).astype(floatX)
+            for i in range(size[0] - 1):
+                retval[i + 1] = np.random.binomial(
+                    n=1, p=p + corr * (retval[i] - p),
+                    size=size[1:]).astype(floatX)
+            return retval
+        else:
+            return np.random.binomial(n=1, p=p, size=size).astype(floatX)
 
 
 def get_ptb_stream(which_set, batch_size, length, drop_prob,
