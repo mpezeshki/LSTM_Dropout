@@ -23,6 +23,7 @@ logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 floatX = theano.config.floatX
 
+
 if __name__ == "__main__":
     batch_size = 64
     x_dim = 50
