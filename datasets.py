@@ -228,7 +228,7 @@ class SampleDropsPTB(Transformer):
 
 def get_ptb_stream(which_set, batch_size, length, drop_prob_s, drop_prob_c,
                    hidden_dim, for_evaluation, num_examples=None,
-                   augment=False):
+                   augment=True):
     dataset = PTB(which_set, length=length, augment=augment)
     if num_examples is None or num_examples > dataset.num_examples:
         num_examples = dataset.num_examples

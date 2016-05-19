@@ -25,14 +25,14 @@ floatX = theano.config.floatX
 
 
 if __name__ == "__main__":
-    batch_size = 64
+    batch_size = 32
     x_dim = 50
     y_dim = 50
     h_dim = 1000
     update_prob_s = 0.95
-    update_prob_c = 1.0
+    update_prob_c = 0.5
     model_type = 4
-    save_path = 'LSTM_PTB_unshared_ZoneOut_on_state'
+    save_path = 'LSTM_PTB_aug_unshared_ZoneOut_0.95state_0.5cell'
 
     print 'Building model ...'
     # shape: T x B x F
