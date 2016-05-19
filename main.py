@@ -29,7 +29,7 @@ if __name__ == "__main__":
     x_dim = 1
     y_dim = 10
     h_dim = 100
-    load_path = 'LSTM_Dropout'
+    load_path = 'LSTM_Elephant_2'
     model_type = int(sys.argv[1])
     update_prob = 0.85
     if model_type == 1:
@@ -125,11 +125,11 @@ if __name__ == "__main__":
                     print param_name
         f = theano.function([x, drops, y], error_rate)
 
-        test_stream = get_stream('train', 1000, update_prob, h_dim, True)
+        test_stream = get_stream('test', 200, update_prob, h_dim, True)
         it = test_stream.get_epoch_iterator(as_dict=True)
 
         errors = []
-        for i in range(10):
+        for i in range(50):
             print i
             data_test = it.next()
             errors.append(f(data_test['x'], data_test['drops'], data_test['y']))

@@ -74,13 +74,13 @@ def best(path, what='valid_error_rate'):
     return np.min([float(i) for i in res[what]])
 
 
-to_be_plotted = ['train_error_rate', 'valid_error_rate']
+to_be_plotted = ['train_evaluation_error_rate', 'valid_error_rate']
 yaxis = 'Error Rate'
 main_title = ''
 
-files = ['path_model_type_1',
-         'path_new_monitoring_model_type_7',
-         'path_model_type_6']
+files = ['LSTM_LSTM_2',
+         'LSTM_ZoneOut_2',
+         'LSTM_Elephant_2']
 path = '/u/pezeshki/LSTM_Dropout/'
 
 plt.figure()
