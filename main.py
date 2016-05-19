@@ -31,16 +31,8 @@ if __name__ == "__main__":
     h_dim = 1000
     update_prob_s = 0.95
     update_prob_c = 1.0
-    model_type = int(sys.argv[1])
-    print model_type
-    if model_type == 1:
-        save_path = 'LSTM_PTB_SD_LSTM'
-    if model_type == 2:
-        save_path = 'LSTM_PTB_SD_Dropout'
-    if model_type == 3:
-        save_path = 'LSTM_PTB_SD_Elephant'
-    if model_type == 4:
-        save_path = 'LSTM_PTB_SD_ZoneOut_on_state'
+    model_type = 4
+    save_path = 'LSTM_PTB_unshared_ZoneOut_on_state'
 
     print 'Building model ...'
     # shape: T x B x F

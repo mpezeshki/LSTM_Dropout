@@ -77,10 +77,8 @@ class DropLSTM(BaseRecurrent, Initializable):
         out_gate = self.gate_activation.apply(slice_last(activation, 3))
         next_states = out_gate * self.activation.apply(next_cells)
 
-        br_drops_states = tensor.Rebroadcast(
-            (0, False), (1, True))(drops[:, :1])
-        br_drops_cells = tensor.Rebroadcast(
-            (0, False), (1, True))(drops[:, 1:])
+        br_drops_states = drops[:, :self.dim]
+        br_drops_cells = drops[:, self.dim:]
 
         if self.model_type == 4:
             next_states = next_states * br_drops_states + (1 - br_drops_states) * states

@@ -211,16 +211,16 @@ class SampleDropsPTB(Transformer):
         transformed_data.append(np.swapaxes(data[0], 0, 1))
         T, B, _ = transformed_data[0].shape
         if self.is_for_test:
-            drops_s = np.ones((T, B, 1)) * self.drop_prob_s
+            drops_s = np.ones((T, B, self.hidden_dim)) * self.drop_prob_s
         else:
             drops_s = np.random.binomial(n=1, p=self.drop_prob_s,
-                                         size=(T, B, 1))
+                                         size=(T, B, self.hidden_dim))
 
         if self.is_for_test:
-            drops_c = np.ones((T, B, 1)) * self.drop_prob_s
+            drops_c = np.ones((T, B, self.hidden_dim)) * self.drop_prob_s
         else:
             drops_c = np.random.binomial(n=1, p=self.drop_prob_c,
-                                         size=(T, B, 1))
+                                         size=(T, B, self.hidden_dim))
         drops = np.concatenate((drops_s, drops_c), axis=2)
         transformed_data.append(drops.astype(floatX))
         return transformed_data
