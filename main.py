@@ -29,8 +29,9 @@ if __name__ == "__main__":
     x_dim = 1
     y_dim = 10
     h_dim = 100
+    load_path = 'LSTM_Dropout'
     model_type = int(sys.argv[1])
-    update_prob = float(sys.argv[2])
+    update_prob = 0.85
     if model_type == 1:
         save_path = 'LSTM_LSTM'
     if model_type == 2:
@@ -39,7 +40,9 @@ if __name__ == "__main__":
         save_path = 'LSTM_Elephant'
     if model_type == 4:
         save_path = 'LSTM_ZoneOut'
-    save_path = save_path + '_' + str(update_prob)
+
+    if load_path:
+        save_path = save_path + '_eval'
 
     print 'Building model ...'
     # shape: T x B x F
@@ -105,8 +108,8 @@ if __name__ == "__main__":
     train_stream_evaluation = get_stream('train', batch_size, update_prob, h_dim, True)
     valid_stream = get_stream('valid', batch_size, update_prob, h_dim, True)
 
-    if False:
-        with open(save_path + '/trained_params_best.npz') as f:
+    if load_path:
+        with open(load_path + '/trained_params_best.npz') as f:
             loaded = np.load(f)
             params_dicts = model.get_parameter_dict()
             params_names = params_dicts.keys()
@@ -121,10 +124,17 @@ if __name__ == "__main__":
                 else:
                     print param_name
         f = theano.function([x, drops, y], error_rate)
-        data_train = train_stream.get_epoch_iterator(as_dict=True).next()
-        data_valid = valid_stream.get_epoch_iterator(as_dict=True).next()
-        print f(data_train['x'], data_train['drops'], data_train['y'])
-        print f(data_valid['x'], data_valid['drops'], data_valid['y'])
+
+        test_stream = get_stream('train', 1000, update_prob, h_dim, True)
+        it = test_stream.get_epoch_iterator(as_dict=True)
+
+        errors = []
+        for i in range(10):
+            print i
+            data_test = it.next()
+            errors.append(f(data_test['x'], data_test['drops'], data_test['y']))
+        print 'Mean error on the test set: ' + str(np.mean(errors))
+        import ipdb; ipdb.set_trace()
 
     monitored_variables = [
         cost, error_rate,
