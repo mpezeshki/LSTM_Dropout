@@ -154,7 +154,6 @@ def get_data(which_set):
         # lists of indices)
         one_hot_data = np.eye(len(data["vocab"]), dtype=theano.config.floatX)[data[which_set]]
         _data_cache[which_set] = cudandarray(one_hot_data)
-        import ipdb; ipdb.set_trace()
     return _data_cache[which_set]
 
 
@@ -195,11 +194,12 @@ class PTB(fuel.datasets.Dataset):
 
 
 class SampleDropsPTB(Transformer):
-    def __init__(self, data_stream, drop_prob, hidden_dim,
+    def __init__(self, data_stream, drop_prob_s, drop_prob_c, hidden_dim,
                  is_for_test, **kwargs):
         super(SampleDropsPTB, self).__init__(
             data_stream, **kwargs)
-        self.drop_prob = drop_prob
+        self.drop_prob_s = drop_prob_s
+        self.drop_prob_c = drop_prob_c
         self.hidden_dim = hidden_dim
         self.is_for_test = is_for_test
         self.produces_examples = False
@@ -211,15 +211,22 @@ class SampleDropsPTB(Transformer):
         transformed_data.append(np.swapaxes(data[0], 0, 1))
         T, B, _ = transformed_data[0].shape
         if self.is_for_test:
-            drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
+            drops_s = np.ones((T, B, 1)) * self.drop_prob_s
         else:
-            drops = np.random.binomial(n=1, p=self.drop_prob,
-                                       size=(T, B, self.hidden_dim))
+            drops_s = np.random.binomial(n=1, p=self.drop_prob_s,
+                                         size=(T, B, 1))
+
+        if self.is_for_test:
+            drops_c = np.ones((T, B, 1)) * self.drop_prob_s
+        else:
+            drops_c = np.random.binomial(n=1, p=self.drop_prob_c,
+                                         size=(T, B, 1))
+        drops = np.concatenate((drops_s, drops_c), axis=2)
         transformed_data.append(drops.astype(floatX))
         return transformed_data
 
 
-def get_ptb_stream(which_set, batch_size, length, drop_prob,
+def get_ptb_stream(which_set, batch_size, length, drop_prob_s, drop_prob_c,
                    hidden_dim, for_evaluation, num_examples=None,
                    augment=False):
     dataset = PTB(which_set, length=length, augment=augment)
@@ -228,7 +235,7 @@ def get_ptb_stream(which_set, batch_size, length, drop_prob,
     stream = fuel.streams.DataStream.default_stream(
         dataset,
         iteration_scheme=fuel.schemes.ShuffledScheme(num_examples, batch_size))
-    ds = SampleDropsPTB(stream, drop_prob, hidden_dim,
+    ds = SampleDropsPTB(stream, drop_prob_s, drop_prob_c, hidden_dim,
                         for_evaluation)
     ds.sources = ('x', 'drops')
     return ds

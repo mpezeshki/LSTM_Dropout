@@ -29,17 +29,18 @@ if __name__ == "__main__":
     x_dim = 50
     y_dim = 50
     h_dim = 1000
-    update_prob = 0.9
+    update_prob_s = 0.95
+    update_prob_c = 1.0
     model_type = int(sys.argv[1])
     print model_type
     if model_type == 1:
-        save_path = 'LSTM_PTB_LSTM'
+        save_path = 'LSTM_PTB_SD_LSTM'
     if model_type == 2:
-        save_path = 'LSTM_PTB_Dropout'
+        save_path = 'LSTM_PTB_SD_Dropout'
     if model_type == 3:
-        save_path = 'LSTM_PTB_Elephant'
+        save_path = 'LSTM_PTB_SD_Elephant'
     if model_type == 4:
-        save_path = 'LSTM_PTB_ZoneOut'
+        save_path = 'LSTM_PTB_SD_ZoneOut_on_state'
 
     print 'Building model ...'
     # shape: T x B x F
@@ -98,11 +99,11 @@ if __name__ == "__main__":
     # train_stream, valid_stream = get_seq_mnist_streams(
     #    h_dim, batch_size, update_prob)
     train_stream = get_ptb_stream(
-        'train', batch_size, 100, update_prob, h_dim, False)
+        'train', batch_size, 100, update_prob_s, update_prob_c, h_dim, False)
     train_stream_evaluation = get_ptb_stream(
-        'train', batch_size, 100, update_prob, h_dim, True)
+        'train', batch_size, 100, update_prob_s, update_prob_c, h_dim, True)
     valid_stream = get_ptb_stream(
-        'valid', batch_size, 100, update_prob, h_dim, True)
+        'valid', batch_size, 100, update_prob_s, update_prob_c, h_dim, True)
 
     if False:
         with open(save_path + '/trained_params_best.npz') as f:

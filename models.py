@@ -77,20 +77,14 @@ class DropLSTM(BaseRecurrent, Initializable):
         out_gate = self.gate_activation.apply(slice_last(activation, 3))
         next_states = out_gate * self.activation.apply(next_cells)
 
-        # In training time drops is either 0 or 1
-        # In test time drops is 0.5 (if drop_prob=0.5)
-        if self.model_type == 2:
-            next_cells = next_cells * drops
+        br_drops_states = tensor.Rebroadcast(
+            (0, False), (1, True))(drops[:, :1])
+        br_drops_cells = tensor.Rebroadcast(
+            (0, False), (1, True))(drops[:, 1:])
 
-        elif self.model_type == 3:
-            next_cells = (
-                forget_gate * cells +
-                in_gate * drops * self.activation.apply(
-                    slice_last(activation, 2)))
-
-        elif self.model_type == 4:
-            next_states = next_states * drops + (1 - drops) * states
-            next_cells = next_cells * drops + (1 - drops) * cells
+        if self.model_type == 4:
+            next_states = next_states * br_drops_states + (1 - br_drops_states) * states
+            next_cells = next_cells * br_drops_cells + (1 - br_drops_cells) * cells
 
         if mask:
             next_states = (mask[:, None] * next_states +
