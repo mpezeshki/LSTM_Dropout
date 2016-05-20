@@ -30,6 +30,7 @@ if __name__ == "__main__":
     y_dim = 50
     h_dim = 1000
     update_prob = 0.9
+    load_path = 'LSTM_PTB_ZoneOut'
     model_type = int(sys.argv[1])
     print model_type
     if model_type == 1:
@@ -40,6 +41,9 @@ if __name__ == "__main__":
         save_path = 'LSTM_PTB_Elephant'
     if model_type == 4:
         save_path = 'LSTM_PTB_ZoneOut'
+
+    if load_path:
+        save_path = 'test'
 
     print 'Building model ...'
     # shape: T x B x F
@@ -104,8 +108,8 @@ if __name__ == "__main__":
     valid_stream = get_ptb_stream(
         'valid', batch_size, 100, update_prob, h_dim, True)
 
-    if False:
-        with open(save_path + '/trained_params_best.npz') as f:
+    if load_path:
+        with open(load_path + '/trained_params_best.npz') as f:
             loaded = np.load(f)
             params_dicts = model.get_parameter_dict()
             params_names = params_dicts.keys()
@@ -119,11 +123,16 @@ if __name__ == "__main__":
                     param.set_value(loaded[param_name])
                 else:
                     print param_name
-        f = theano.function([x, drops, y], error_rate)
-        data_train = train_stream.get_epoch_iterator(as_dict=True).next()
-        data_valid = valid_stream.get_epoch_iterator(as_dict=True).next()
-        print f(data_train['x'], data_train['drops'], data_train['y'])
-        print f(data_valid['x'], data_valid['drops'], data_valid['y'])
+        f = theano.function(ComputationGraph(cost).inputs, cost)
+
+        test_stream = get_ptb_stream(
+            'test', 1, 446184, update_prob,
+            h_dim,
+            for_evaluation=True,
+            augment=False)
+        data = test_stream.get_epoch_iterator(as_dict=True).next()
+        print f(data['x'], data['drops']) / np.log(2.0)
+        import ipdb; ipdb.set_trace()
 
     monitored_variables = [
         cost, error_rate,

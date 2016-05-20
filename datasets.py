@@ -154,7 +154,6 @@ def get_data(which_set):
         # lists of indices)
         one_hot_data = np.eye(len(data["vocab"]), dtype=theano.config.floatX)[data[which_set]]
         _data_cache[which_set] = cudandarray(one_hot_data)
-        import ipdb; ipdb.set_trace()
     return _data_cache[which_set]
 
 
