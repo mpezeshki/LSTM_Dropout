@@ -29,17 +29,11 @@ if __name__ == "__main__":
     x_dim = 1
     y_dim = 10
     h_dim = 100
-    load_path = 'LSTM_Elephant_2'
-    model_type = int(sys.argv[1])
-    update_prob = 0.85
-    if model_type == 1:
-        save_path = 'LSTM_LSTM'
-    if model_type == 2:
-        save_path = 'LSTM_Dropout'
-    if model_type == 3:
-        save_path = 'LSTM_Elephant'
-    if model_type == 4:
-        save_path = 'LSTM_ZoneOut'
+    load_path = None
+    model_type = 4
+    update_prob_s = 0.95
+    update_prob_c = 0.5
+    save_path = 'LSTM_ZoneOut_unshared_mnist'
 
     if load_path:
         save_path = save_path + '_eval'
@@ -104,9 +98,9 @@ if __name__ == "__main__":
 
     # train_stream, valid_stream = get_seq_mnist_streams(
     #    h_dim, batch_size, update_prob)
-    train_stream = get_stream('train', batch_size, update_prob, h_dim, False)
-    train_stream_evaluation = get_stream('train', batch_size, update_prob, h_dim, True)
-    valid_stream = get_stream('valid', batch_size, update_prob, h_dim, True)
+    train_stream = get_stream('train', batch_size, update_prob_s, update_prob_c, h_dim, False)
+    train_stream_evaluation = get_stream('train', batch_size, update_prob_s, update_prob_c, h_dim, True)
+    valid_stream = get_stream('valid', batch_size, update_prob_s, update_prob_c, h_dim, True)
 
     if load_path:
         with open(load_path + '/trained_params_best.npz') as f:
@@ -125,7 +119,7 @@ if __name__ == "__main__":
                     print param_name
         f = theano.function([x, drops, y], error_rate)
 
-        test_stream = get_stream('test', 200, update_prob, h_dim, True)
+        test_stream = get_stream('test', 200, update_prob_s, update_prob_c, h_dim, True)
         it = test_stream.get_epoch_iterator(as_dict=True)
 
         errors = []
