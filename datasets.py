@@ -93,7 +93,7 @@ def get_dataset(which_set):
     return _datasets[which_set]
 
 
-def get_stream(which_set, batch_size, drop_prob,
+def get_stream(which_set, batch_size, update_prob_s, update_prob_c,
                hidden_dim, for_evaluation, num_examples=None):
     np.random.seed(seed=1)
     permutation = np.random.randint(0, 784, size=(784,))
@@ -104,19 +104,20 @@ def get_stream(which_set, batch_size, drop_prob,
         dataset,
         iteration_scheme=fuel.schemes.ShuffledScheme(num_examples, batch_size))
     if which_set == "train":
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
+        ds = SampleDrops2(stream, update_prob_s, update_prob_c, hidden_dim, for_evaluation, permutation)
     else:
-        ds = SampleDrops2(stream, drop_prob, hidden_dim, for_evaluation, permutation)
+        ds = SampleDrops2(stream, update_prob_s, update_prob_c, hidden_dim, for_evaluation, permutation)
     ds.sources = ('x', 'y', 'drops')
     return ds
 
 
 class SampleDrops2(Transformer):
-    def __init__(self, data_stream, drop_prob, hidden_dim,
+    def __init__(self, data_stream, update_prob_s, update_prob_c, hidden_dim,
                  is_for_test, permutation, **kwargs):
         super(SampleDrops2, self).__init__(
             data_stream, **kwargs)
-        self.drop_prob = drop_prob
+        self.update_prob_s = update_prob_s
+        self.update_prob_c = update_prob_c
         self.hidden_dim = hidden_dim
         self.is_for_test = is_for_test
         self.produces_examples = False
@@ -131,9 +132,16 @@ class SampleDrops2(Transformer):
         transformed_data.append(data[1][:, 0])
         T, B, _ = transformed_data[0].shape
         if self.is_for_test:
-            drops = np.ones((T, B, self.hidden_dim)) * self.drop_prob
+            drops_s = np.ones((T, B, self.hidden_dim)) * self.drop_prob_s
         else:
-            drops = np.random.binomial(n=1, p=self.drop_prob,
-                                       size=(T, B, self.hidden_dim))
+            drops_s = np.random.binomial(n=1, p=self.drop_prob_s,
+                                         size=(T, B, self.hidden_dim))
+
+        if self.is_for_test:
+            drops_c = np.ones((T, B, self.hidden_dim)) * self.drop_prob_s
+        else:
+            drops_c = np.random.binomial(n=1, p=self.drop_prob_c,
+                                         size=(T, B, self.hidden_dim))
+        drops = np.concatenate((drops_s, drops_c), axis=2)
         transformed_data.append(drops.astype(floatX))
         return transformed_data
